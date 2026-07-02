@@ -1,0 +1,117 @@
+---
+title: "Olira Search API Endpoint: Query Resources by Filter"
+sidebarTitle: "Search"
+description: "GET /search — full-text and filtered search across Olira resources. Accepts query string and filter parameters, returns ranked results."
+---
+
+The Search API lets you query all resources in your account using full-text search and optional filters. Results are ranked by relevance and returned in a paginated format, making it easy to build powerful lookup and discovery features in your application.
+
+---
+
+### `GET /search` — Search
+
+Performs a full-text search across resource names and metadata. You can combine the `q` parameter with optional filters to narrow results further. All requests must include an `Authorization: Bearer <API_KEY>` header.
+
+<ParamField query="q" type="string" required>
+  The search query string. Olira performs full-text matching against resource names and metadata values. Must be a non-empty string.
+</ParamField>
+
+<ParamField query="page" type="integer" default={1}>
+  The page number to retrieve. Starts at `1`.
+</ParamField>
+
+<ParamField query="per_page" type="integer" default={20}>
+  Number of results to return per page. Maximum value is `100`.
+</ParamField>
+
+<ParamField query="status" type="string">
+  Filter results by resource status. Accepted values: `active`, `inactive`. Omit this parameter to include resources of all statuses.
+</ParamField>
+
+<Tip>
+  For best results, use specific terms in `q`. The search engine matches against resource names and all top-level string values in the `metadata` object.
+</Tip>
+
+**Response — 200 OK**
+
+<ResponseField name="data" type="array">
+  An array of Resource objects that match the query, ordered by relevance score (highest first).
+
+  <Expandable title="Resource object fields">
+    <ResponseField name="id" type="string">
+      Unique resource identifier, prefixed with `res_`.
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      Human-readable name of the resource.
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      Current status of the resource: `active` or `inactive`.
+    </ResponseField>
+    <ResponseField name="metadata" type="object">
+      Arbitrary key-value pairs attached to the resource.
+    </ResponseField>
+    <ResponseField name="created_at" type="string">
+      ISO 8601 UTC timestamp of when the resource was created.
+    </ResponseField>
+    <ResponseField name="updated_at" type="string">
+      ISO 8601 UTC timestamp of the most recent update.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  Pagination metadata for the current response.
+
+  <Expandable title="meta fields">
+    <ResponseField name="total" type="integer">
+      Total number of resources matching the search query and filters.
+    </ResponseField>
+    <ResponseField name="page" type="integer">
+      The current page number.
+    </ResponseField>
+    <ResponseField name="per_page" type="integer">
+      Number of results returned per page.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl "https://api.olira.ai/v1/search?q=dataset&status=active&page=1&per_page=20" \
+  -H "Authorization: Bearer <API_KEY>"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "res_01j9k2mabcdef1234567890ab",
+      "name": "Primary dataset",
+      "status": "active",
+      "metadata": {
+        "team": "engineering"
+      },
+      "created_at": "2024-09-01T10:00:00Z",
+      "updated_at": "2024-09-15T08:30:00Z"
+    },
+    {
+      "id": "res_02k8l3nbcdefg2345678901bc",
+      "name": "Analytics dataset",
+      "status": "active",
+      "metadata": {
+        "team": "data-platform"
+      },
+      "created_at": "2024-08-12T09:15:00Z",
+      "updated_at": "2024-09-10T11:00:00Z"
+    }
+  ],
+  "meta": {
+    "total": 2,
+    "page": 1,
+    "per_page": 20
+  }
+}
+```
+
+<Note>
+  If your query matches no resources, the API returns a `200 OK` with an empty `data` array rather than a `404` error.
+</Note>

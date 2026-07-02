@@ -1,0 +1,87 @@
+---
+title: "Olira API error codes and response format reference"
+sidebarTitle: "Errors"
+description: "Complete reference for Olira API error codes, HTTP status codes, and the JSON error response structure returned on every failed request."
+---
+
+When a request fails, Olira returns a JSON error body alongside the appropriate HTTP status code. Every error response follows the same predictable structure, so you can write a single error-handling path in your code regardless of which endpoint triggered the failure.
+
+## Error object
+
+All error responses contain a top-level `error` object with the following fields:
+
+<ResponseField name="error.code" type="string" required>
+  A machine-readable string that identifies the error type. Use this field for programmatic branching — for example, retrying on `rate_limit_exceeded` or surfacing field messages on `validation_error`.
+</ResponseField>
+
+<ResponseField name="error.message" type="string" required>
+  A human-readable sentence describing what went wrong. This message is intended for developers during debugging and should not be displayed verbatim to end users.
+</ResponseField>
+
+<ResponseField name="error.details" type="object">
+  An optional object containing additional context about the error. For `validation_error` responses, this object includes per-field error messages. For other error types it may be empty (`{}`).
+</ResponseField>
+
+## Error codes
+
+The table below lists every error code the Olira API returns, along with the corresponding HTTP status code and a description:
+
+| Code | HTTP status | Description |
+|---|---|---|
+| `unauthorized` | 401 | Missing or invalid API key. |
+| `forbidden` | 403 | Valid key but insufficient permissions to perform the operation. |
+| `not_found` | 404 | The requested resource does not exist or is not accessible to your key. |
+| `validation_error` | 422 | The request body failed validation. Inspect `error.details` for per-field messages. |
+| `rate_limit_exceeded` | 429 | You have exceeded the rate limit. Read the `Retry-After` response header for the number of seconds to wait before retrying. |
+| `internal_error` | 500 | An unexpected server-side error occurred. You can retry the request with exponential backoff, or contact support if the problem persists. |
+
+<Note>
+  Olira also uses `200 OK`, `201 Created`, and `204 No Content` for successful responses. A `204` response never includes a body.
+</Note>
+
+## Example error responses
+
+### `validation_error` (422)
+
+Returned when one or more fields in your request body fail validation. The `details` object maps each invalid field name to an array of error messages:
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "The request body contains invalid fields.",
+    "details": {
+      "name": ["This field is required."],
+      "status": ["Must be one of: active, inactive."]
+    }
+  }
+}
+```
+
+### `rate_limit_exceeded` (429)
+
+Returned when your integration exceeds the allowed request rate. Check the `Retry-After` header in the HTTP response for how many seconds to wait before sending another request:
+
+```json
+{
+  "error": {
+    "code": "rate_limit_exceeded",
+    "message": "You have exceeded the allowed request rate. Please slow down.",
+    "details": {
+      "retry_after_seconds": 10
+    }
+  }
+}
+```
+
+## Handling errors
+
+A reliable error-handling strategy for the Olira API follows three steps:
+
+1. **Check the HTTP status code first.** A `2xx` code means success; anything else is a failure. This lets you quickly separate success from error paths without parsing a body.
+2. **Inspect `error.code` for programmatic handling.** Switch on the code string to decide whether to retry (`rate_limit_exceeded`, `internal_error`), fix the request (`validation_error`), or surface a permissions issue to the user (`forbidden`).
+3. **Use `error.details` for validation messages.** When you receive a `validation_error`, iterate over the keys of `details` to map server-side validation failures back to the fields in your form or payload.
+
+<Tip>
+  Implement exponential backoff with jitter when retrying `rate_limit_exceeded` and `internal_error` responses. Start with the `Retry-After` value as your base delay and increase it on subsequent failures.
+</Tip>

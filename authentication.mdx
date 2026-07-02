@@ -1,0 +1,82 @@
+---
+title: "Olira API Authentication: API Keys and Best Practices"
+sidebarTitle: "Authentication"
+description: "Olira authenticates all API requests using API keys passed as Bearer tokens. Learn how to create, use, rotate, and secure your API keys."
+---
+
+Every request to the Olira API must be authenticated. Olira uses API keys passed as Bearer tokens in the `Authorization` header to verify your identity and authorize access to your resources. Without a valid API key, all requests return a `401 Unauthorized` response.
+
+## Getting your API key
+
+API keys are created and managed from the Olira dashboard. Follow these steps to generate your first key.
+
+<Steps>
+  <Step title="Open the Olira dashboard">
+    Log in to your account at [app.olira.ai](https://app.olira.ai).
+  </Step>
+  <Step title="Navigate to API Keys">
+    Go to **Settings → API Keys** in the left-hand navigation menu.
+  </Step>
+  <Step title="Create a new key">
+    Click **Create new key**, enter a descriptive name for the key (for example, `production` or `staging`), and click **Generate**.
+  </Step>
+  <Step title="Copy your key">
+    Copy the API key that appears and store it in a secure location such as a password manager or secrets vault.
+
+    <Warning>
+      Your API key is only displayed once. If you navigate away or close this dialog without copying the key, you'll need to revoke it and generate a new one.
+    </Warning>
+  </Step>
+</Steps>
+
+## Using your API key
+
+Pass your API key in the `Authorization` header of every request using the `Bearer` scheme.
+
+```
+Authorization: Bearer <API_KEY>
+```
+
+The examples below show how to include this header in a request.
+
+<CodeGroup>
+  ```bash cURL
+  curl --request GET \
+    --url https://api.olira.ai/v1/resources \
+    --header "Authorization: Bearer YOUR_API_KEY"
+  ```
+
+  ```javascript JavaScript
+  const response = await fetch("https://api.olira.ai/v1/resources", {
+    method: "GET",
+    headers: {
+      Authorization: "Bearer YOUR_API_KEY",
+    },
+  });
+
+  const data = await response.json();
+  console.log(data);
+  ```
+</CodeGroup>
+
+## Rotating your API key
+
+If your key is compromised, exposed, or simply due for a refresh, you can revoke it and generate a replacement from the dashboard.
+
+1. Go to **Settings → API Keys** in the [Olira dashboard](https://app.olira.ai).
+2. Find the key you want to retire and click **Revoke**.
+3. Confirm the revocation in the dialog that appears.
+4. Click **Create new key** to generate a fresh key, then update all services and applications that used the old one.
+
+<Note>
+  Revoking a key takes effect immediately. Any in-flight or subsequent requests using the revoked key will return `401 Unauthorized`. Make sure your replacement key is in place before revoking the old one to avoid unexpected downtime.
+</Note>
+
+## Security best practices
+
+Keeping your API keys secure is critical to protecting your data and your users. Follow these practices to reduce risk.
+
+- **Never commit API keys to version control.** Avoid hardcoding keys in source files. Use `.gitignore` to exclude any files that contain secrets.
+- **Use environment variables.** Load your API key at runtime from an environment variable (for example, `OLIRA_API_KEY`) rather than embedding it in your codebase.
+- **Rotate keys regularly.** Establish a rotation schedule — for example, every 90 days — so that even if a key is silently compromised, its exposure window is limited.
+- **Use separate keys per environment.** Create distinct keys for `development`, `staging`, and `production` so that a leaked development key never puts your production data at risk.

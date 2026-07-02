@@ -1,0 +1,80 @@
+---
+title: "Quickstart: Make Your First Olira API Call Today"
+sidebarTitle: "Quickstart"
+description: "Make your first Olira API call in minutes. Create an account, grab your API key, and send a request using the REST API or an official SDK."
+---
+
+This guide walks you through everything you need to make your first successful request to the Olira API. By the end, you'll have a working API call and a solid foundation to start building with the full platform.
+
+<Steps>
+  <Step title="Create your account">
+    Head to [app.olira.ai](https://app.olira.ai) and sign up for a free account. Once you verify your email and log in, you'll land on the Olira dashboard — your home base for managing API keys, monitoring usage, and configuring your workspace.
+  </Step>
+  <Step title="Get your API key">
+    In the dashboard, navigate to **Settings → API Keys** and click **Create new key**. Give your key a descriptive name (for example, `dev-local` or `my-first-key`), then click **Generate**.
+
+    Copy your API key immediately and store it in a secure location. You won't be able to view it again after closing the dialog.
+  </Step>
+  <Step title="Make your first request">
+    Send a `GET` request to the `/resources` endpoint to confirm your key works. Replace `YOUR_API_KEY` with the key you just copied.
+
+    <CodeGroup>
+      ```bash cURL
+      curl --request GET \
+        --url https://api.olira.ai/v1/resources \
+        --header "Authorization: Bearer YOUR_API_KEY"
+      ```
+
+      ```javascript JavaScript
+      const response = await fetch("https://api.olira.ai/v1/resources", {
+        method: "GET",
+        headers: {
+          Authorization: "Bearer YOUR_API_KEY",
+        },
+      });
+
+      const data = await response.json();
+      console.log(data);
+      ```
+
+      ```python Python
+      import requests
+
+      url = "https://api.olira.ai/v1/resources"
+      headers = {"Authorization": "Bearer YOUR_API_KEY"}
+
+      response = requests.get(url, headers=headers)
+      print(response.json())
+      ```
+    </CodeGroup>
+  </Step>
+  <Step title="View the response">
+    A successful request returns a JSON object containing a `data` array and a `meta` object with pagination details. If your account is new, the `data` array will be empty — that's expected.
+
+    ```json
+    {
+      "data": [],
+      "meta": {
+        "total": 0,
+        "page": 1,
+        "per_page": 20
+      }
+    }
+    ```
+
+    Receive a `401 Unauthorized` response instead? Double-check that you've replaced `YOUR_API_KEY` with your actual key and that the `Authorization` header is formatted correctly.
+  </Step>
+</Steps>
+
+## What to explore next
+
+Now that your first request is working, here are the key areas of the Olira API to explore next.
+
+- **Create and manage resources** — use `POST /resources` to create new resources, `PATCH /resources/{id}` to update them, and `DELETE /resources/{id}` to remove them. See the [API Reference](/api-reference/introduction) for full details.
+- **Search** — query your data with `GET /search` to find resources quickly across your workspace.
+- **Events** — retrieve a log of activity in your account with `GET /events`.
+- **Webhooks** — register a URL with `POST /webhooks` to receive real-time event notifications. Remove a registration with `DELETE /webhooks/{id}`. Visit the [Webhooks guide](/guides/webhooks) for setup instructions.
+
+<Tip>
+  For the best developer experience, use one of the official Olira SDKs rather than calling the REST API directly. SDKs handle authentication, serialization, and error handling for you. Install `@olira/sdk` from npm for JavaScript/TypeScript, or `olira` from PyPI for Python. Visit the [SDKs overview](/sdks/overview) to get started.
+</Tip>

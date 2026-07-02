@@ -1,0 +1,66 @@
+---
+title: "How Olira works: platform concepts and architecture"
+sidebarTitle: "Overview"
+description: "Learn the foundational concepts behind Olira: resources, events, webhooks, and search, and how they work together to power your integration."
+---
+
+Understanding Olira's core concepts helps you design reliable, maintainable integrations. Before you start making API calls, it's worth getting familiar with the building blocks of the platform — what they are, how they relate to each other, and how they fit into your application's architecture.
+
+## Resources
+
+Resources are the primary data objects in Olira. They represent the entities your application creates, reads, updates, and deletes through the API. Every resource has a unique UUID, a set of standard fields (such as `status`, `created_at`, and `updated_at`), and an open-ended `metadata` object you can use to store custom key-value data alongside each record.
+
+You manage resources through the core CRUD endpoints. When you create or modify a resource, Olira records the change as an immutable Event — giving you a complete audit trail without any extra work on your part.
+
+<Tip>
+  Use the `metadata` field to attach application-specific context to a resource — for example, internal IDs, user-facing labels, or feature flags — without needing to maintain a separate mapping table on your end.
+</Tip>
+
+## Events
+
+Events are immutable records of things that happen to resources. Every time a resource is created, updated, or deleted, Olira automatically generates a corresponding event object and appends it to the event log. Events are never modified or deleted, making them a reliable source of truth for auditing and debugging.
+
+Beyond audit trails, events are the trigger mechanism for the rest of the platform. You can query the event log directly via the API, or configure Webhooks to receive event payloads in real time as they occur.
+
+<Note>
+  Events follow a `resource.action` naming convention — for example, `resource.created`, `resource.updated`, and `resource.deleted`. You can filter webhooks and search queries by event type.
+</Note>
+
+## Webhooks
+
+Webhooks let Olira push event notifications to your server the moment they happen. When an event occurs, Olira sends an HTTP `POST` request to the URL you configure, with the full event payload in the request body. This enables real-time integrations without polling.
+
+You can register multiple webhook endpoints and subscribe each one to a specific set of event types, so different parts of your system only receive the events they care about. Olira signs each outgoing webhook payload so you can verify that requests are authentic before processing them.
+
+<Tip>
+  During development, tools like [Webhook.site](https://webhook.site) are useful for inspecting incoming payloads before you wire up your production endpoint.
+</Tip>
+
+## Search
+
+Search gives you full-text and filtered querying across all of your resources. Rather than fetching and filtering records client-side, you can push query logic to Olira and receive a ranked, paginated result set. Search supports both keyword queries and structured filters on standard and metadata fields.
+
+Results are paginated using Olira's standard pagination — the same `page`, `per_page`, and `meta` envelope used across all collection endpoints.
+
+---
+
+## Next steps
+
+Dive deeper into how the platform works with the following concept guides.
+
+<CardGroup cols={2}>
+  <Card
+    title="Data Model"
+    icon="database"
+    href="/concepts/data-model"
+  >
+    Explore the structure of Resource, Event, and Webhook objects returned by the API.
+  </Card>
+  <Card
+    title="Requests & Responses"
+    icon="arrow-right-arrow-left"
+    href="/concepts/requests-responses"
+  >
+    Learn how to format API requests and interpret responses, including pagination and errors.
+  </Card>
+</CardGroup>

@@ -1,0 +1,126 @@
+---
+title: "Events API endpoint: list resource activity history"
+sidebarTitle: "Events"
+description: "GET /events — retrieve the history of events for Olira resources. Filter by resource ID or event type. Returns paginated event objects."
+---
+
+Every time a significant action occurs on a resource — such as creation, update, or deletion — Olira records an event. The Events API gives you read-only access to this activity history, allowing you to audit changes, debug workflows, and build event-driven features. Results are always ordered newest first.
+
+---
+
+### `GET /events` — List events
+
+Returns a paginated list of events across all resources in your account. You can filter events by the originating resource or by event type to retrieve exactly the history you need. All requests must include an `Authorization: Bearer <API_KEY>` header.
+
+<ParamField query="resource_id" type="string">
+  Filter events to those associated with a specific resource. Pass a `res_`-prefixed UUID to limit the response to that resource's history.
+</ParamField>
+
+<ParamField query="type" type="string">
+  Filter events by type. Common values include `resource.created`, `resource.updated`, and `resource.deleted`. Omit this parameter to return all event types.
+</ParamField>
+
+<ParamField query="page" type="integer" default={1}>
+  The page number to retrieve. Starts at `1`.
+</ParamField>
+
+<ParamField query="per_page" type="integer" default={20}>
+  Number of results to return per page. Maximum value is `100`.
+</ParamField>
+
+<Tip>
+  Combine `resource_id` and `type` to pinpoint specific activity — for example, all `resource.updated` events for a single resource.
+</Tip>
+
+**Response — 200 OK**
+
+<ResponseField name="data" type="array">
+  An array of Event objects, ordered newest first.
+
+  <Expandable title="Event object fields">
+    <ResponseField name="id" type="string">
+      Unique event identifier, prefixed with `evt_` (e.g. `evt_01j9k2mabcdef1234567890ab`).
+    </ResponseField>
+    <ResponseField name="type" type="string">
+      The event type describing what action occurred (e.g. `resource.created`, `resource.updated`, `resource.deleted`).
+    </ResponseField>
+    <ResponseField name="resource_id" type="string">
+      The ID of the resource this event is associated with.
+    </ResponseField>
+    <ResponseField name="data" type="object">
+      A snapshot of the resource state at the time of the event. The shape mirrors the Resource object.
+    </ResponseField>
+    <ResponseField name="created_at" type="string">
+      ISO 8601 UTC timestamp of when the event was recorded.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  Pagination metadata for the current response.
+
+  <Expandable title="meta fields">
+    <ResponseField name="total" type="integer">
+      Total number of events matching the applied filters.
+    </ResponseField>
+    <ResponseField name="page" type="integer">
+      The current page number.
+    </ResponseField>
+    <ResponseField name="per_page" type="integer">
+      Number of results returned per page.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl "https://api.olira.ai/v1/events?resource_id=res_01j9k2mabcdef1234567890ab&type=resource.updated&page=1&per_page=20" \
+  -H "Authorization: Bearer <API_KEY>"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "evt_03m7n4ocdefgh3456789012cd",
+      "type": "resource.updated",
+      "resource_id": "res_01j9k2mabcdef1234567890ab",
+      "data": {
+        "id": "res_01j9k2mabcdef1234567890ab",
+        "name": "Primary dataset (revised)",
+        "status": "active",
+        "metadata": {
+          "team": "data-platform"
+        },
+        "created_at": "2024-09-01T10:00:00Z",
+        "updated_at": "2024-09-20T14:05:00Z"
+      },
+      "created_at": "2024-09-20T14:05:00Z"
+    },
+    {
+      "id": "evt_01j9k2mabcdef1234567890ef",
+      "type": "resource.created",
+      "resource_id": "res_01j9k2mabcdef1234567890ab",
+      "data": {
+        "id": "res_01j9k2mabcdef1234567890ab",
+        "name": "Primary dataset",
+        "status": "active",
+        "metadata": {
+          "team": "engineering"
+        },
+        "created_at": "2024-09-01T10:00:00Z",
+        "updated_at": "2024-09-01T10:00:00Z"
+      },
+      "created_at": "2024-09-01T10:00:00Z"
+    }
+  ],
+  "meta": {
+    "total": 2,
+    "page": 1,
+    "per_page": 20
+  }
+}
+```
+
+<Note>
+  Events are immutable records. They cannot be created, modified, or deleted through the API — they are generated automatically by Olira whenever a resource action occurs.
+</Note>

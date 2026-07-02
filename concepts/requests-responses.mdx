@@ -1,0 +1,161 @@
+---
+title: "Olira API request and response format reference guide"
+sidebarTitle: "Requests & Responses"
+description: "Understand how to format Olira API requests and interpret responses, including authentication headers, pagination parameters, and error structures."
+---
+
+The Olira API follows REST conventions and uses JSON for all request and response bodies. Every request you send must include the correct headers, and every response you receive will follow a predictable JSON envelope — making it straightforward to write consistent parsing and error-handling logic across your integration.
+
+## Base URL
+
+All API requests are made to the following base URL:
+
+```
+https://api.olira.ai/v1
+```
+
+Append the resource path to this base URL to form the full endpoint. For example, to list all resources you would call `GET https://api.olira.ai/v1/resources`.
+
+---
+
+## Request format
+
+### Required headers
+
+Every request to the Olira API must include the following HTTP headers:
+
+| Header | Value |
+|---|---|
+| `Authorization` | `Bearer <API_KEY>` |
+| `Content-Type` | `application/json` |
+| `Accept` | `application/json` |
+
+Replace `<API_KEY>` with your secret API key. You can find and manage your API keys in the Olira dashboard. Never expose your API key in client-side code or public repositories.
+
+<Note>
+  Requests that are missing the `Authorization` header, or that supply an invalid key, will receive a `401 Unauthorized` response. See [HTTP status codes](#http-status-codes) below for the full list of error statuses.
+</Note>
+
+### Example request
+
+The following example shows how to create a new resource using cURL:
+
+```bash
+curl --request POST \
+  --url https://api.olira.ai/v1/resources \
+  --header "Authorization: Bearer <API_KEY>" \
+  --header "Content-Type: application/json" \
+  --header "Accept: application/json" \
+  --data '{
+    "name": "My Resource",
+    "status": "active",
+    "metadata": {
+      "project": "onboarding",
+      "owner": "alice"
+    }
+  }'
+```
+
+---
+
+## Response format
+
+### Single-object responses
+
+Successful requests that return a single object wrap the result in a top-level `data` field:
+
+```json
+{
+  "data": {
+    "id": "res_01HXYZ",
+    "name": "My Resource",
+    "status": "active",
+    "metadata": {
+      "project": "onboarding",
+      "owner": "alice"
+    },
+    "created_at": "2024-01-15T10:30:00Z",
+    "updated_at": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+### Collection responses
+
+Requests that return a list of objects include both a `data` array and a `meta` object. The `meta` object contains pagination details you can use to fetch subsequent pages:
+
+```json
+{
+  "data": [
+    {
+      "id": "res_01HXYZ",
+      "name": "My Resource",
+      "status": "active",
+      "metadata": {},
+      "created_at": "2024-01-15T10:30:00Z",
+      "updated_at": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "meta": {
+    "total": 100,
+    "page": 1,
+    "per_page": 20
+  }
+}
+```
+
+Use the `page` and `per_page` query parameters to control pagination:
+
+```bash
+curl --request GET \
+  --url "https://api.olira.ai/v1/resources?page=2&per_page=20" \
+  --header "Authorization: Bearer <API_KEY>" \
+  --header "Accept: application/json"
+```
+
+<Tip>
+  The `meta.total` field tells you the total number of records matching your query. Divide `total` by `per_page` to calculate the number of pages you need to fetch to retrieve all results.
+</Tip>
+
+### Error responses
+
+When a request fails, Olira returns a JSON body with an `error` object describing what went wrong:
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "The 'name' field is required.",
+    "details": [
+      {
+        "field": "name",
+        "issue": "This field may not be blank."
+      }
+    ]
+  }
+}
+```
+
+The `error.code` field contains a machine-readable string you can match against in your error-handling logic. The `error.message` field contains a human-readable explanation suitable for logging. The optional `error.details` array provides field-level information for validation errors.
+
+---
+
+## HTTP status codes
+
+Olira uses standard HTTP status codes to indicate the outcome of every request. Your integration should handle all of the following:
+
+| Status | Meaning |
+|---|---|
+| `200` | **OK** — The request succeeded. The response body contains the requested data. |
+| `201` | **Created** — The resource was successfully created. The response body contains the new object. |
+| `400` | **Bad Request** — The request was malformed or contained invalid parameters. Check the `error` object for details. |
+| `401` | **Unauthorized** — The API key was missing, expired, or invalid. Verify your `Authorization` header. |
+| `403` | **Forbidden** — The API key is valid but does not have permission to perform this action. |
+| `404` | **Not Found** — The requested resource does not exist. Verify the ID in your request path. |
+| `422` | **Unprocessable Entity** — The request was well-formed but failed validation. The `error.details` array will list the offending fields. |
+| `429` | **Too Many Requests** — You have exceeded the rate limit for this endpoint. Check the `Retry-After` response header for the number of seconds to wait before retrying. |
+| `500` | **Internal Server Error** — Something went wrong on Olira's end. If this persists, contact support. |
+
+<Note>
+  For `429` responses, always respect the `Retry-After` header rather than retrying immediately. Implementing exponential backoff with jitter is strongly recommended for production integrations.
+</Note>

@@ -1,0 +1,146 @@
+---
+title: "Troubleshooting common Olira API integration errors"
+sidebarTitle: "Troubleshooting"
+description: "Diagnose and fix Olira API errors including 401 unauthorized, 403 forbidden, 422 validation, 429 rate limits, webhook delivery failures, and SDK issues."
+---
+
+When an integration isn't behaving as expected, a systematic approach saves time. This guide walks you through the most common error scenarios — authentication failures, missing resources, validation problems, rate limiting, webhook delivery issues, and SDK errors — and explains exactly what to check and how to fix each one.
+
+## Authentication errors (401 / 403)
+
+A `401 Unauthorized` response means the API could not authenticate your request. A `403 Forbidden` response means the request was authenticated but the API key does not have permission to perform the action.
+
+**Common causes:**
+
+- The `Authorization` header is missing entirely.
+- The header is present but uses the wrong format (for example, `Token` or `Api-Key` instead of `Bearer`).
+- The API key has been revoked or never existed.
+- You are using a key from one environment (e.g., sandbox) against another environment's base URL (e.g., production).
+
+**Checklist:**
+
+<Steps>
+  <Step title="Verify the header format">
+    Confirm your request includes the header exactly as shown below. The scheme must be `Bearer` with a capital B, followed by a single space and your key.
+
+    ```bash
+    Authorization: Bearer YOUR_API_KEY
+    ```
+  </Step>
+  <Step title="Check the key in your dashboard">
+    Sign in to [https://app.olira.ai](https://app.olira.ai), go to **Settings → API Keys**, and confirm the key you are using is listed and not marked as revoked.
+  </Step>
+  <Step title="Confirm the correct environment key">
+    Make sure you are using a **production key** with `https://api.olira.ai/v1` and a **sandbox key** with `https://api-sandbox.olira.ai/v1`. Mixing environments is a common source of 401 errors.
+  </Step>
+</Steps>
+
+## Resource not found (404)
+
+A `404 Not Found` response means the API could not locate the resource you requested.
+
+**Things to check:**
+
+- **Resource ID** — Confirm the ID in your request path is correct and belongs to a resource that actually exists. IDs are case-sensitive.
+- **Environment mismatch** — Resources created in the sandbox are not visible in production, and vice versa. Verify that the resource was created in the same environment you are querying.
+- **Endpoint path** — Double-check the URL path against the API reference. A common mistake is including or omitting a trailing slash, or misspelling a path segment.
+
+## Validation errors (422)
+
+A `422 Unprocessable Entity` response means your request was understood but contains invalid or missing data. The response body includes an `error.details` object with field-level messages that tell you exactly what needs to be corrected.
+
+**Example 422 response:**
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "Validation failed.",
+    "details": {
+      "name": ["can't be blank"]
+    }
+  }
+}
+```
+
+Read each entry in `error.details` — the keys are the field names and the values are arrays of human-readable error messages. Fix the corresponding fields in your request body and retry.
+
+## Rate limit errors (429)
+
+A `429 Too Many Requests` response means your API key has exceeded the 1,000 requests-per-minute limit. The response includes a `Retry-After` header specifying how many seconds you must wait before making another request.
+
+**JavaScript retry example:**
+
+```javascript
+async function fetchWithRetry(url, options, maxRetries = 3) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const response = await fetch(url, options);
+
+    if (response.status === 429) {
+      const retryAfter = parseInt(response.headers.get("Retry-After") || "1", 10);
+      console.warn(`Rate limited. Retrying in ${retryAfter} second(s)...`);
+      await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
+      continue;
+    }
+
+    return response;
+  }
+
+  throw new Error("Max retries reached after rate limiting.");
+}
+```
+
+See the [Rate Limits](/help/rate-limits) page for a more complete discussion of headers and best practices.
+
+## Webhook not receiving events
+
+If your webhook endpoint is configured but not receiving events, work through the following checklist.
+
+**Checklist:**
+
+- **Public accessibility** — Your endpoint must be reachable from the internet. A `localhost` URL will not work in production.
+- **Response time** — Your endpoint must return a `2xx` status code within **10 seconds**. If it takes longer, Olira treats the delivery as failed and will retry.
+- **Status code** — Return any status in the `2xx` range (e.g., `200 OK` or `204 No Content`) to acknowledge receipt. Any other status is treated as a failure.
+- **Signature verification** — If you have enabled signature verification, make sure your implementation is correct. An exception thrown during verification can cause your handler to return a non-2xx response.
+- **Event subscription** — Confirm in the dashboard that you have subscribed to the specific event type you are expecting. If the event type is not selected, Olira will not deliver it to your endpoint.
+
+<Tip>
+  During development, use a tunnelling tool like [ngrok](https://ngrok.com) to expose your local server to the internet. Run `ngrok http 3000` (replacing `3000` with your local port) and use the generated `https://` URL as your webhook endpoint in the dashboard.
+</Tip>
+
+## SDK issues
+
+If you encounter errors when using the `@olira/sdk` (npm) or `olira` (PyPI) packages, the steps below cover the most common problems.
+
+**Ensure you are on the latest version:**
+
+```bash
+# JavaScript / TypeScript
+npm update @olira/sdk
+
+# Python
+pip install --upgrade olira
+```
+
+Older SDK versions may lack support for newer API features or contain bugs that have since been fixed. Check the SDK changelog for details.
+
+**Inspect the error object:**
+
+Both SDKs surface API errors as an `OliraError` object with `code` and `message` properties that map directly to the API's error response. Log or inspect these fields to understand exactly what went wrong before attempting a fix.
+
+```javascript
+import { OliraError } from "@olira/sdk";
+
+try {
+  const result = await client.someMethod();
+} catch (err) {
+  if (err instanceof OliraError) {
+    console.error("API error code:", err.code);
+    console.error("API error message:", err.message);
+  }
+}
+```
+
+<Note>
+  Always wrap SDK calls in a `try/catch` block (JavaScript/TypeScript) or a `try/except` block (Python). Unhandled SDK errors will crash your application. Proper error handling lets you distinguish between retriable errors (such as `rate_limit_exceeded` or `internal_error`) and permanent ones (such as `validation_error`) and respond accordingly.
+</Note>

@@ -1,0 +1,85 @@
+---
+title: "Olira API rate limits, headers, and retry strategies"
+sidebarTitle: "Rate Limits"
+description: "Learn about Olira API rate limits, how to read X-RateLimit headers in every response, and how to implement retry logic with exponential backoff."
+---
+
+Rate limits exist to keep the Olira API fast and reliable for everyone. By capping the number of requests any single API key can make in a given time window, Olira can prevent runaway clients from degrading performance for other users. This page explains the limits that apply to your API key, the headers the API returns so you can monitor your usage in real time, and how to write resilient code that handles limit errors gracefully.
+
+## Limits
+
+The following limits apply to every API key.
+
+| Limit | Value |
+|---|---|
+| Requests per minute | 1,000 per API key |
+| Maximum `per_page` | 100 results |
+
+The requests-per-minute window is rolling — it is not reset at a fixed clock boundary. If your key sends 1,000 requests in a 10-second burst, it will be limited for the remainder of that 60-second window.
+
+## Rate limit headers
+
+Every API response includes the following headers so you can track how close you are to the limit at any point in your code.
+
+| Header | Description |
+|---|---|
+| `X-RateLimit-Limit` | Total requests allowed per minute for your API key |
+| `X-RateLimit-Remaining` | Number of requests remaining in the current window |
+| `X-RateLimit-Reset` | Unix timestamp (seconds) at which the current window resets |
+| `Retry-After` | Seconds to wait before retrying (present on `429` responses only) |
+
+Reading `X-RateLimit-Remaining` before or after each request lets you implement proactive throttling — slowing down your request rate before you actually hit the limit — rather than reacting to `429` errors after the fact.
+
+## Handling 429 responses
+
+When your API key exceeds the rate limit, the API responds with HTTP `429 Too Many Requests`. The `Retry-After` header in that response tells you the minimum number of seconds to wait. The example below shows a JavaScript helper that automatically respects this header and retries with exponential backoff as a fallback.
+
+```javascript
+async function fetchWithBackoff(url, options, maxRetries = 5) {
+  let delay = 1000; // start with 1 second
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url, options);
+
+    if (response.status !== 429) {
+      // Not a rate-limit error — return the response as-is
+      return response;
+    }
+
+    if (attempt === maxRetries) {
+      throw new Error(`Request failed with 429 after ${maxRetries} attempts.`);
+    }
+
+    // Prefer the server-specified wait time; fall back to exponential backoff
+    const retryAfterHeader = response.headers.get("Retry-After");
+    const waitMs = retryAfterHeader
+      ? parseInt(retryAfterHeader, 10) * 1000
+      : delay;
+
+    console.warn(
+      `Rate limited (attempt ${attempt}/${maxRetries}). Waiting ${waitMs}ms before retrying...`
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+
+    // Increase the fallback delay for the next iteration
+    delay = Math.min(delay * 2, 30000); // cap at 30 seconds
+  }
+}
+```
+
+You can use `fetchWithBackoff` as a drop-in replacement for `fetch` anywhere in your application. Pair it with your own error handling to distinguish between `429` responses and other error types.
+
+## Best practices
+
+Following these recommendations will help you stay within rate limits and build a more efficient integration overall.
+
+- **Cache responses where possible.** If the same data is requested frequently and changes infrequently, store the result in memory or a cache layer and serve it locally rather than hitting the API on every request.
+- **Use `per_page=100` for list endpoints.** Fetching the maximum page size reduces the total number of requests needed to paginate through a large dataset.
+- **Spread requests over time rather than bursting.** If you need to process a large batch of records, introduce a small delay between requests (for example, using a queue with a controlled concurrency limit) rather than firing all requests simultaneously.
+- **Use webhooks instead of polling.** Polling an endpoint on a fixed interval to check for changes consumes quota even when nothing has changed. Subscribe to the relevant webhook events instead — Olira will push a notification to your endpoint the moment something changes.
+- **Contact support if you need a higher limit.** If your use case legitimately requires more than 1,000 requests per minute, email support@olira.ai with details about your workflow and expected volume.
+
+<Warning>
+  Rate limits apply **per API key**, not per account. Creating multiple API keys does not increase the total request quota available to your account — each key is individually limited to 1,000 requests per minute. Distributing traffic across multiple keys to circumvent rate limits is not permitted and may result in account suspension.
+</Warning>

@@ -1,0 +1,62 @@
+---
+title: "Olira API Reference: Authenticating Your API Requests"
+sidebarTitle: "Authentication"
+description: "All Olira API requests require an API key passed in the Authorization header. Learn how to obtain your key, send it, and handle auth errors."
+---
+
+Every request you make to the Olira API must be authenticated with an API key. Olira uses standard Bearer token authentication — you pass your key in the `Authorization` header, and the API validates it before processing your request. Requests made without a valid key are rejected immediately with an HTTP `401` response.
+
+## Obtaining an API key
+
+API keys are managed from the Olira dashboard. To create one:
+
+1. Sign in at [https://app.olira.ai](https://app.olira.ai).
+2. Navigate to **Settings → API Keys**.
+3. Click **Create API key**, give it a descriptive name, and choose the appropriate environment (live or sandbox).
+4. Copy the key immediately — it is only shown once at creation time.
+
+<Tip>
+  Use separate keys for each environment and each application. This makes it straightforward to rotate a single key without disrupting your other integrations.
+</Tip>
+
+## Sending the API key
+
+Include your API key in the `Authorization` header of every request using the `Bearer` scheme:
+
+```
+Authorization: Bearer <YOUR_API_KEY>
+```
+
+Here is a complete example using cURL:
+
+```bash
+curl https://api.olira.ai/v1/resources \
+  -H "Authorization: Bearer sk_live_xxxxxxxxxxxx"
+```
+
+You can use this same pattern in any HTTP client or SDK — set the `Authorization` header once at the client level and every request will be authenticated automatically.
+
+## Authentication errors
+
+When authentication fails, the API returns one of two HTTP status codes depending on the reason:
+
+- **401 Unauthorized** — the `Authorization` header is missing, the token is malformed, or the API key is invalid (e.g. revoked or from the wrong environment).
+- **403 Forbidden** — the API key is valid and recognised, but it does not have permission to perform the requested operation.
+
+Below is an example `401` response body:
+
+```json
+{
+  "error": {
+    "code": "unauthorized",
+    "message": "Invalid or missing API key.",
+    "details": {}
+  }
+}
+```
+
+If you receive a `403`, check that the key you are using has the scopes or permissions required for the endpoint. You can review and update key permissions in **Settings → API Keys** on the dashboard.
+
+<Warning>
+  Never include your API key in client-side code, browser bundles, or public repositories. If a key is ever exposed, revoke it immediately from the dashboard and issue a new one.
+</Warning>

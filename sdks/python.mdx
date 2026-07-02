@@ -1,0 +1,135 @@
+---
+title: "Olira Python SDK reference and complete usage guide"
+sidebarTitle: "Python SDK"
+description: "Install and use the Olira Python SDK (olira) with sync and async support. Covers resources, search, events, webhooks, and error handling."
+---
+
+The Olira Python SDK (`olira`) lets you interact with the Olira platform using clean, idiomatic Python. It provides a synchronous client for straightforward scripting and server-side use, as well as an asynchronous client built on `asyncio` for high-throughput or async-first applications like FastAPI services. Every method is type-annotated, so your editor can offer autocomplete and surface type errors before you run your code.
+
+## Installation
+
+Install `olira` with pip or Poetry:
+
+<CodeGroup>
+  ```bash pip
+  pip install olira
+  ```
+
+  ```bash poetry
+  poetry add olira
+  ```
+</CodeGroup>
+
+<Note>
+  The Olira Python SDK requires Python 3.8 or higher.
+</Note>
+
+## Initialization
+
+Import `OliraClient` and provide your API key. Reading the key from an environment variable keeps it out of your source code:
+
+```python
+import os
+from olira import OliraClient
+
+client = OliraClient(api_key=os.environ["OLIRA_API_KEY"])
+```
+
+## Resources
+
+Resources are the primary objects in Olira. The SDK exposes the full CRUD surface under `client.resources`.
+
+**List resources**
+
+```python
+response = client.resources.list(page=1, per_page=20)
+resources = response.data
+```
+
+**Create a resource**
+
+```python
+resource = client.resources.create(name="My Resource")
+```
+
+**Get a resource**
+
+```python
+resource = client.resources.get("res_01HXYZ")
+```
+
+**Update a resource**
+
+```python
+updated = client.resources.update("res_01HXYZ", name="New Name")
+```
+
+**Delete a resource**
+
+```python
+client.resources.delete("res_01HXYZ")
+```
+
+## Search
+
+Use `client.search.query` to perform a full-text search across your resources. Pass your keyword or phrase as the `q` argument:
+
+```python
+results = client.search.query(q="keyword", page=1)
+```
+
+## Events
+
+Events are an immutable audit log of activity on your resources. Use `client.events.list` and filter by `resource_id` to scope results to a specific resource:
+
+```python
+response = client.events.list(resource_id="res_01HXYZ")
+events = response.data
+```
+
+## Webhooks
+
+Webhooks let you receive real-time notifications when events occur in your Olira account. Use `client.webhooks.create` to register an endpoint and `client.webhooks.delete` to remove one.
+
+**Create a webhook**
+
+```python
+webhook = client.webhooks.create(url="https://example.com/webhook")
+```
+
+**Delete a webhook**
+
+```python
+client.webhooks.delete("wh_01HXYZ")
+```
+
+## Async support
+
+For async applications, use `AsyncOliraClient` instead of `OliraClient`. It exposes the same methods as the sync client, but every method is a coroutine that you `await`. Use it as an async context manager to ensure connections are cleaned up properly:
+
+```python
+import asyncio
+import os
+from olira import AsyncOliraClient
+
+async def main():
+    async with AsyncOliraClient(api_key=os.environ["OLIRA_API_KEY"]) as client:
+        response = await client.resources.list()
+
+asyncio.run(main())
+```
+
+## Error handling
+
+All SDK methods raise an `OliraError` when the API returns a non-successful response. Catch it with a `try/except` block and inspect `e.code` and `e.message` to handle the failure appropriately:
+
+```python
+from olira import OliraError
+
+try:
+    resource = client.resources.get("res_nonexistent")
+except OliraError as e:
+    print(e.code, e.message)
+```
+
+`e.code` is a machine-readable string (for example, `"not_found"`) that you can branch on in your logic, while `e.message` provides a human-readable description suitable for logging or surfacing to end users.

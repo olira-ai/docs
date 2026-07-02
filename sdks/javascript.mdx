@@ -1,0 +1,125 @@
+---
+title: "Olira JavaScript and TypeScript SDK complete reference"
+sidebarTitle: "JavaScript SDK"
+description: "Install and use the Olira JavaScript SDK (@olira/sdk) with Node.js or browser environments. Covers resources, search, events, webhooks, and error handling."
+---
+
+The Olira JavaScript SDK (`@olira/sdk`) is the fastest way to integrate Olira into a Node.js service, serverless function, or browser application. It ships with full TypeScript definitions, so you get autocomplete and type checking out of the box — no separate `@types` package required. Every method maps directly to a REST API resource and returns a typed response object, keeping your integration predictable and easy to maintain.
+
+## Installation
+
+Install `@olira/sdk` with your preferred package manager:
+
+<CodeGroup>
+  ```bash npm
+  npm install @olira/sdk
+  ```
+
+  ```bash yarn
+  yarn add @olira/sdk
+  ```
+
+  ```bash pnpm
+  pnpm add @olira/sdk
+  ```
+</CodeGroup>
+
+## Initialization
+
+Import `OliraClient` and pass your API key to the constructor:
+
+```typescript
+import { OliraClient } from '@olira/sdk';
+
+const client = new OliraClient({
+  apiKey: process.env.OLIRA_API_KEY,
+});
+```
+
+<Tip>
+  Always load your API key from an environment variable rather than hard-coding it. This keeps credentials out of source control and makes it easy to rotate keys without changing your code.
+</Tip>
+
+## Resources
+
+Resources are the core objects in Olira. The SDK exposes the full CRUD surface under `client.resources`.
+
+**List resources**
+
+```typescript
+const { data, meta } = await client.resources.list({ page: 1, perPage: 20 });
+```
+
+**Create a resource**
+
+```typescript
+const resource = await client.resources.create({ name: 'My Resource' });
+```
+
+**Get a resource**
+
+```typescript
+const resource = await client.resources.get('res_01HXYZ');
+```
+
+**Update a resource**
+
+```typescript
+const updated = await client.resources.update('res_01HXYZ', { name: 'New Name' });
+```
+
+**Delete a resource**
+
+```typescript
+await client.resources.delete('res_01HXYZ');
+```
+
+## Search
+
+Use `client.search.query` to perform a full-text search across your resources. The `q` parameter accepts any keyword or phrase:
+
+```typescript
+const results = await client.search.query({ q: 'keyword', page: 1 });
+```
+
+## Events
+
+Events are an immutable audit log of activity on your resources. Retrieve them with `client.events.list` and filter by `resourceId` to scope results to a specific resource:
+
+```typescript
+const { data: events } = await client.events.list({ resourceId: 'res_01HXYZ' });
+```
+
+## Webhooks
+
+Webhooks let you receive real-time notifications when events occur in your Olira account. Use `client.webhooks.create` to register an endpoint and `client.webhooks.delete` to remove one.
+
+**Create a webhook**
+
+```typescript
+const webhook = await client.webhooks.create({ url: 'https://example.com/webhook' });
+```
+
+**Delete a webhook**
+
+```typescript
+await client.webhooks.delete('wh_01HXYZ');
+```
+
+## Error handling
+
+All SDK methods throw an `OliraError` when the API returns a non-successful response. Wrap your calls in a `try/catch` block and check the error type to handle failures gracefully:
+
+```typescript
+import { OliraError } from '@olira/sdk';
+
+try {
+  const resource = await client.resources.get('res_nonexistent');
+} catch (err) {
+  if (err instanceof OliraError) {
+    console.error(err.code, err.message);
+  }
+}
+```
+
+`err.code` is a machine-readable string (for example, `"not_found"`) that you can use in conditional logic, while `err.message` provides a human-readable description suitable for logging or user-facing output.

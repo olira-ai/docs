@@ -1,0 +1,150 @@
+---
+title: "Handle Olira API errors reliably in your application"
+sidebarTitle: "Error Handling"
+description: "Learn how Olira structures API error responses, what each error code means, and how to write resilient retry logic that handles failures gracefully."
+---
+
+Robust error handling is the difference between an integration that silently breaks and one that recovers gracefully. Every request to the Olira API can fail — due to invalid input, permission issues, rate limits, or transient server problems — and your application needs to anticipate all of these scenarios. This guide explains how Olira structures error responses, what each error code signals, and how to write code that handles failures without surprising your users.
+
+## Error response structure
+
+When a request fails, Olira always returns a consistent JSON body alongside the appropriate HTTP status code. You can rely on this shape regardless of which endpoint you are calling.
+
+```json
+{
+  "error": {
+    "code": "not_found",
+    "message": "The requested resource does not exist.",
+    "details": {
+      "resource_id": "res_01HXYZ"
+    }
+  }
+}
+```
+
+<ResponseField name="error" type="object" required>
+  The top-level error container. All error information lives inside this object.
+
+  <Expandable title="error fields">
+    <ResponseField name="error.code" type="string" required>
+      A stable, machine-readable identifier for the error type. Use this field — not the HTTP status or `message` — to branch your error-handling logic.
+    </ResponseField>
+
+    <ResponseField name="error.message" type="string" required>
+      A human-readable description of the error, suitable for logging or displaying to developers. This string may change between API versions; do not parse it programmatically.
+    </ResponseField>
+
+    <ResponseField name="error.details" type="object">
+      An optional object containing additional context about the failure, such as which field failed validation or which resource was not found. The shape varies by error code.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Error codes
+
+The table below lists every error code the Olira API returns, its corresponding HTTP status, and what it means for your integration.
+
+| Code | HTTP Status | Description |
+|---|---|---|
+| `unauthorized` | 401 | API key is missing or invalid. Check that your `Authorization: Bearer <API_KEY>` header is present and correct. |
+| `forbidden` | 403 | Your API key is valid but lacks permission to perform this action. Review the scopes granted to the key in the dashboard. |
+| `not_found` | 404 | The resource you requested does not exist, or the URL path is incorrect. |
+| `validation_error` | 422 | The request body failed validation. Inspect `error.details` for a field-level breakdown of what went wrong. |
+| `rate_limit_exceeded` | 429 | You have sent too many requests in a short window. Pause and retry after the delay indicated in the response. |
+| `internal_error` | 500 | An unexpected error occurred on Olira's servers. If the problem persists, contact [support](https://olira.ai/support) with the request ID from your logs. |
+
+## Handling errors in code
+
+The recommended pattern is to inspect `error.code` after any non-2xx response and branch accordingly. The example below demonstrates this in JavaScript, with special handling for `rate_limit_exceeded` using exponential backoff.
+
+```javascript
+async function fetchResource(id, retries = 4) {
+  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  for (let attempt = 0; attempt < retries; attempt++) {
+    const response = await fetch(`https://api.olira.ai/v1/resources/${id}`, {
+      headers: { Authorization: "Bearer <API_KEY>" },
+    });
+
+    // Success — return the parsed body
+    if (response.ok) {
+      return response.json();
+    }
+
+    const { error } = await response.json();
+
+    switch (error.code) {
+      case "unauthorized":
+        throw new Error("Invalid API key. Check your credentials and try again.");
+
+      case "forbidden":
+        throw new Error("Your API key does not have permission to read this resource.");
+
+      case "not_found":
+        throw new Error(`Resource ${id} does not exist.`);
+
+      case "validation_error":
+        throw new Error(`Request validation failed: ${JSON.stringify(error.details)}`);
+
+      case "rate_limit_exceeded": {
+        if (attempt === retries - 1) throw new Error("Rate limit exceeded. All retries exhausted.");
+        const backoff = Math.pow(2, attempt) * 500; // 500ms, 1s, 2s, 4s …
+        console.warn(`Rate limited. Retrying in ${backoff}ms…`);
+        await delay(backoff);
+        break;
+      }
+
+      case "internal_error":
+      default: {
+        if (attempt === retries - 1) throw new Error(`Server error: ${error.message}`);
+        const backoff = Math.pow(2, attempt) * 1000;
+        console.warn(`Server error. Retrying in ${backoff}ms…`);
+        await delay(backoff);
+      }
+    }
+  }
+}
+```
+
+## Retrying requests
+
+Not every error warrants a retry. Retrying the wrong errors wastes time and can make problems worse.
+
+**Safe to retry** — these errors are transient and often resolve on their own:
+
+- `500 internal_error` — a server-side hiccup that may not recur.
+- `429 rate_limit_exceeded` — you have exceeded the rate limit; wait and try again.
+
+**Do not retry without fixing the request first** — these errors indicate a problem with the request itself:
+
+- `401 unauthorized` — retrying with the same key will always fail.
+- `403 forbidden` — the key lacks the required permission; update the key's scopes.
+- `404 not_found` — the resource does not exist; verify the ID.
+- `422 validation_error` — the request body is malformed; correct the input.
+
+When you do retry, use **exponential backoff** — double the wait time after each failed attempt — to avoid amplifying load on the API during outages.
+
+```javascript
+async function withRetry(fn, maxAttempts = 4) {
+  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const isLastAttempt = attempt === maxAttempts - 1;
+      const isRetryable = err.status === 500 || err.status === 429;
+
+      if (isLastAttempt || !isRetryable) throw err;
+
+      const waitMs = Math.pow(2, attempt) * 1000;
+      console.warn(`Attempt ${attempt + 1} failed. Retrying in ${waitMs}ms…`);
+      await delay(waitMs);
+    }
+  }
+}
+```
+
+<Warning>
+  Never automatically retry a `4xx` error (except `429`) without modifying the request first. The error will not resolve on its own — you must fix the underlying issue (wrong API key, missing permission, invalid input) before trying again.
+</Warning>

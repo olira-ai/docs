@@ -1,0 +1,197 @@
+---
+title: "Receive and verify real-time events with Olira webhooks"
+sidebarTitle: "Webhooks"
+description: "Set up Olira webhooks to receive HTTP POST payloads when resource events occur. Includes payload format and signature verification."
+---
+
+Webhooks let your application react to Olira events the moment they happen, without polling the API. When something changes in Olira — a resource is created, updated, or deleted — Olira sends an HTTP `POST` request carrying a structured payload to a URL of your choosing. This guide explains how to register a webhook endpoint, understand the payload format, verify that each delivery is authentic, and respond correctly.
+
+## Creating a webhook
+
+You can register a webhook endpoint either through the Olira dashboard or directly via the API.
+
+<Steps>
+  <Step title="Open the Webhooks settings page">
+    Sign in to the [Olira dashboard](https://app.olira.ai) and navigate to **Settings → Webhooks**.
+  </Step>
+
+  <Step title="Add your endpoint">
+    Click **Add endpoint**. Enter the public HTTPS URL of your server — for example, `https://your-server.com/hooks/olira` — and select the event types you want to subscribe to. You can update the event list at any time.
+  </Step>
+
+  <Step title="Save your Webhook Secret">
+    After saving, Olira generates a **Webhook Secret** for the endpoint. Copy it and store it securely (for example, as an environment variable). You will use this secret to verify that incoming payloads genuinely originate from Olira.
+  </Step>
+
+  <Step title="Register via the API (alternative)">
+    If you prefer to automate setup, create a webhook programmatically with a `POST /webhooks` request:
+
+    <CodeGroup>
+      ```bash cURL
+      curl --request POST \
+        --url https://api.olira.ai/v1/webhooks \
+        --header 'Authorization: Bearer <API_KEY>' \
+        --header 'Content-Type: application/json' \
+        --data '{
+          "url": "https://your-server.com/hooks/olira",
+          "events": ["resource.created", "resource.updated", "resource.deleted"]
+        }'
+      ```
+
+      ```javascript JavaScript
+      const response = await fetch("https://api.olira.ai/v1/webhooks", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer <API_KEY>",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          url: "https://your-server.com/hooks/olira",
+          events: ["resource.created", "resource.updated", "resource.deleted"],
+        }),
+      });
+
+      const webhook = await response.json();
+      console.log(webhook.data.id); // store this ID to manage the webhook later
+      ```
+    </CodeGroup>
+  </Step>
+</Steps>
+
+## Webhook payload
+
+Every webhook delivery is an HTTP `POST` with a JSON body. The payload contains the event metadata and the full state of the affected resource at the time of the event.
+
+```json
+{
+  "id": "evt_01HABC",
+  "type": "resource.created",
+  "resource_id": "res_01HXYZ",
+  "data": {
+    "id": "res_01HXYZ",
+    "name": "My First Resource",
+    "created_at": "2024-01-15T10:30:00Z",
+    "updated_at": "2024-01-15T10:30:00Z"
+  },
+  "created_at": "2024-01-15T10:30:00Z"
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | A unique identifier for this event delivery. Use it for deduplication if your handler might receive the same event more than once. |
+| `type` | string | The event type that triggered this delivery (see [Event types](#event-types) below). |
+| `resource_id` | string | The ID of the resource the event relates to. |
+| `data` | object | The full resource object at the time the event occurred. |
+| `created_at` | string | ISO 8601 timestamp of when the event was generated. |
+
+## Event types
+
+| Event | Description |
+|---|---|
+| `resource.created` | A new resource was created in your account. |
+| `resource.updated` | An existing resource was modified. The `data` field reflects the resource's state after the update. |
+| `resource.deleted` | A resource was permanently deleted. The `data` field contains the resource's last known state before deletion. |
+
+## Verifying signatures
+
+Every webhook request includes an `X-Olira-Signature` header containing an HMAC-SHA256 digest of the raw request body, computed using your Webhook Secret. You must verify this signature before processing any payload to ensure the request genuinely came from Olira and was not tampered with in transit.
+
+The verification process is:
+
+1. Read the raw request body as a string (before any JSON parsing).
+2. Compute `HMAC-SHA256(rawBody, webhookSecret)` and hex-encode the result.
+3. Compare your computed digest to the value in `X-Olira-Signature`.
+
+```javascript
+import crypto from "crypto";
+
+function verifySignature(rawBody, signature, secret) {
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(rawBody, "utf8")
+    .digest("hex");
+
+  // Use timingSafeEqual to prevent timing attacks
+  const expectedBuffer = Buffer.from(expected, "hex");
+  const signatureBuffer = Buffer.from(signature, "hex");
+
+  if (expectedBuffer.length !== signatureBuffer.length) return false;
+  return crypto.timingSafeEqual(expectedBuffer, signatureBuffer);
+}
+
+// Example usage with an Express.js handler
+app.post(
+  "/hooks/olira",
+  express.raw({ type: "application/json" }), // get raw Buffer, not parsed JSON
+  (req, res) => {
+    const signature = req.headers["x-olira-signature"];
+    const rawBody = req.body.toString("utf8");
+
+    if (!verifySignature(rawBody, signature, process.env.OLIRA_WEBHOOK_SECRET)) {
+      return res.status(401).json({ error: "Invalid signature" });
+    }
+
+    const event = JSON.parse(rawBody);
+
+    switch (event.type) {
+      case "resource.created":
+        console.log("New resource:", event.data.id);
+        break;
+      case "resource.updated":
+        console.log("Resource updated:", event.data.id);
+        break;
+      case "resource.deleted":
+        console.log("Resource deleted:", event.resource_id);
+        break;
+      default:
+        console.log("Unknown event type:", event.type);
+    }
+
+    res.status(200).json({ received: true });
+  }
+);
+```
+
+<Warning>
+  Always verify the `X-Olira-Signature` header before processing or acting on a webhook payload. Skipping this step means anyone who discovers your endpoint URL can send forged events to your application.
+</Warning>
+
+## Responding to webhooks
+
+Your server must return an HTTP `2xx` status code (for example, `200 OK`) within **10 seconds** of receiving the request. If Olira does not receive a `2xx` response — due to a timeout, a non-2xx status code, or a network error — it treats the delivery as failed and schedules a retry.
+
+Olira retries failed deliveries up to **3 times** using exponential backoff:
+
+| Attempt | Delay after previous failure |
+|---|---|
+| 1st retry | ~30 seconds |
+| 2nd retry | ~5 minutes |
+| 3rd retry | ~30 minutes |
+
+To avoid timeouts, acknowledge the webhook immediately and process the payload asynchronously using a queue or background job:
+
+```javascript
+app.post(
+  "/hooks/olira",
+  express.raw({ type: "application/json" }),
+  (req, res) => {
+    const signature = req.headers["x-olira-signature"];
+    const rawBody = req.body.toString("utf8");
+
+    if (!verifySignature(rawBody, signature, process.env.OLIRA_WEBHOOK_SECRET)) {
+      return res.status(401).json({ error: "Invalid signature" });
+    }
+
+    const event = JSON.parse(rawBody);
+
+    // Respond immediately, then hand off to a background worker
+    res.status(200).json({ received: true });
+    processEventAsync(event); // non-blocking
+  }
+);
+```
+
+<Note>
+  Because Olira may deliver the same event more than once during retries, make your handler **idempotent** — use the `event.id` field to detect and safely ignore duplicate deliveries.
+</Note>

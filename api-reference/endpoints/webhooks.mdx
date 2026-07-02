@@ -1,0 +1,103 @@
+---
+title: "Webhooks API endpoints: manage webhook subscriptions"
+sidebarTitle: "Webhooks"
+description: "REST API endpoints for creating and deleting Olira webhook subscriptions. Covers POST /webhooks and DELETE /webhooks/{id} with signature verification."
+---
+
+Webhooks let you subscribe to Olira events and receive real-time HTTP notifications at a URL you control. When a subscribed event occurs, Olira sends a `POST` request to your endpoint with the event payload as the request body. Use the endpoints below to create and remove webhook subscriptions.
+
+---
+
+### `POST /webhooks` — Create webhook
+
+Registers a new webhook subscription. You specify the HTTPS URL that should receive event payloads and the list of event types you want to subscribe to. On success, Olira returns the created Webhook object with a `201 Created` status — including a one-time `secret` field you must store immediately.
+
+<ParamField body="url" type="string" required>
+  The HTTPS endpoint that Olira will deliver event payloads to. Must be a valid, publicly reachable HTTPS URL.
+</ParamField>
+
+<ParamField body="events" type="array" required>
+  An array of event type strings to subscribe to (e.g. `["resource.created", "resource.updated"]`). You must include at least one event type.
+</ParamField>
+
+**Response — 201 Created**
+
+<ResponseField name="id" type="string">
+  Unique webhook identifier, prefixed with `wh_` (e.g. `wh_01j9k2mabcdef1234567890ab`).
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  The HTTPS endpoint registered to receive event payloads.
+</ResponseField>
+
+<ResponseField name="events" type="array">
+  The list of event types this webhook is subscribed to.
+</ResponseField>
+
+<ResponseField name="active" type="boolean">
+  Whether the webhook is currently active and will receive deliveries. Newly created webhooks are `true` by default.
+</ResponseField>
+
+<ResponseField name="secret" type="string">
+  A signing secret used to verify that incoming payloads originate from Olira. **Only returned at creation time.** Store it securely — you will not be able to retrieve it again.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 UTC timestamp of when the webhook was created.
+</ResponseField>
+
+<Warning>
+  The `secret` field is only included in the creation response. Store it securely (for example, as an environment variable) right away — if you lose it, you will need to delete this webhook and create a new one.
+</Warning>
+
+```bash
+curl -X POST https://api.olira.ai/v1/webhooks \
+  -H "Authorization: Bearer <API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://your-app.example.com/webhooks/olira",
+    "events": ["resource.created", "resource.updated", "resource.deleted"]
+  }'
+```
+
+```json
+{
+  "id": "wh_01j9k2mabcdef1234567890ab",
+  "url": "https://your-app.example.com/webhooks/olira",
+  "events": [
+    "resource.created",
+    "resource.updated",
+    "resource.deleted"
+  ],
+  "active": true,
+  "secret": "whsec_4a8f2c1e9d3b7a6f0e5c2d1b8a4f9e3c",
+  "created_at": "2024-09-01T10:00:00Z"
+}
+```
+
+<Tip>
+  Use the `secret` to verify webhook signatures. Olira includes a signature in the `X-Olira-Signature` header of every delivery, computed as an HMAC-SHA256 hash of the raw request body using your secret.
+</Tip>
+
+---
+
+### `DELETE /webhooks/{id}` — Delete webhook
+
+Permanently removes a webhook subscription. Once deleted, Olira will stop sending event payloads to the registered URL. A successful deletion returns a `204 No Content` response with an empty body.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the webhook to delete (e.g. `wh_01j9k2mabcdef1234567890ab`).
+</ParamField>
+
+<Warning>
+  Deleting a webhook is permanent. Any in-flight deliveries triggered before deletion may still be attempted, but no new deliveries will be made after the webhook is removed.
+</Warning>
+
+**Response — 204 No Content**
+
+An empty response body is returned on success.
+
+```bash
+curl -X DELETE https://api.olira.ai/v1/webhooks/wh_01j9k2mabcdef1234567890ab \
+  -H "Authorization: Bearer <API_KEY>"
+```

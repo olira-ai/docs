@@ -1,0 +1,68 @@
+---
+title: "Olira API frequently asked questions for developers"
+sidebarTitle: "FAQ"
+description: "Answers to the most common developer questions about the Olira API, covering authentication, rate limits, SDKs, webhooks, and the sandbox environment."
+---
+
+If you're just getting started or running into something unexpected, you're in the right place. This page collects the questions developers ask most often about the Olira API, covering everything from authentication and rate limits to SDKs and webhooks. If you don't find what you're looking for here, reach out to the team at support@olira.ai.
+
+<Accordion title="How do I get an API key?">
+  Sign in to the Olira dashboard at [https://app.olira.ai](https://app.olira.ai), navigate to **Settings → API Keys**, and click **Create API Key**. Give the key a descriptive name (for example, `production-backend` or `dev-local`) so you can identify it later. Copy and store the key immediately — for security reasons, the full key value is only shown once.
+</Accordion>
+
+<Accordion title="What happens if I lose my API key?">
+  If you lose access to an API key, you can revoke it from the dashboard to ensure it can no longer be used. Go to **Settings → API Keys**, find the key you want to invalidate, and click **Revoke**. Then generate a new key and update your application's configuration. Revoking a key is immediate — any requests using the old key will begin returning `401 Unauthorized` right away.
+</Accordion>
+
+<Accordion title="Can I use the API in a browser?">
+  Yes, the Olira API can be called from a browser environment, but you must **never expose your API key in client-side code**. Instead, proxy all API requests through your own backend server. Your server holds the API key securely and forwards requests on behalf of your frontend. Embedding an API key in a web page or mobile app bundle risks it being extracted and misused.
+</Accordion>
+
+<Accordion title="What is the rate limit?">
+  Each API key is allowed **1,000 requests per minute**. If your application exceeds this limit, the API returns an HTTP `429 Too Many Requests` response. The limit resets on a rolling per-minute window. If you consistently need a higher throughput, contact support@olira.ai to discuss your requirements.
+</Accordion>
+
+<Accordion title="How do I know if I've been rate limited?">
+  When you exceed the rate limit, the API responds with an HTTP `429` status code. The response body will contain an error object with `error.code` set to `rate_limit_exceeded`. Additionally, the response includes a `Retry-After` header that tells you exactly how many seconds to wait before making your next request.
+
+  ```json
+  {
+    "error": {
+      "code": "rate_limit_exceeded",
+      "message": "You have exceeded the allowed request rate. Please retry after the indicated delay."
+    }
+  }
+  ```
+
+  See the [Rate Limits](/help/rate-limits) page for guidance on implementing retry logic.
+</Accordion>
+
+<Accordion title="Can I have multiple API keys?">
+  Yes. You can create as many API keys as you need from the dashboard. It is good practice to create **separate keys for each environment** — for example, one for development, one for staging, and one for production. This way you can rotate or revoke a single environment's key without affecting others, and you can track usage per environment independently.
+</Accordion>
+
+<Accordion title="How do webhooks work?">
+  When a subscribed event occurs in Olira, the platform sends an HTTP `POST` request containing a JSON payload to the endpoint URL you configure in the dashboard. Your endpoint must return a `2xx` status code within 10 seconds to acknowledge receipt. If it does not, Olira will retry delivery. Each webhook request includes a signature header you can use to verify the payload came from Olira. See the webhooks guide for full setup instructions and signature verification details.
+</Accordion>
+
+<Accordion title="What should I do if I get a 500 error?">
+  An HTTP `500 Internal Server Error` indicates an unexpected problem on Olira's side. These are typically transient, so the first step is to **retry the request** — ideally with a short delay and exponential backoff. If the error persists across multiple retries or affects a critical workflow, contact the support team at support@olira.ai and include the request ID from the response headers if available.
+</Accordion>
+
+<Accordion title="Which programming languages does Olira support?">
+  Olira provides official SDKs for **JavaScript/TypeScript** (available on npm as `@olira/sdk`) and **Python** (available on PyPI as `olira`). The underlying REST API is language-agnostic, so you can integrate with Olira from any environment that can make HTTP requests — Go, Ruby, Java, PHP, and so on. The REST API base URL is `https://api.olira.ai/v1`.
+
+  Install the SDKs with:
+
+  ```bash
+  # JavaScript / TypeScript
+  npm install @olira/sdk
+
+  # Python
+  pip install olira
+  ```
+</Accordion>
+
+<Accordion title="Is there a sandbox or test environment?">
+  Yes. Olira provides a sandbox environment at `https://api-sandbox.olira.ai/v1` that you can use to test your integration without affecting production data or incurring real usage. To use the sandbox, create a dedicated **test API key** in the dashboard — sandbox keys are labelled separately from production keys. All endpoints and response shapes are identical to the production environment.
+</Accordion>

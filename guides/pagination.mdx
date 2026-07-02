@@ -1,0 +1,124 @@
+---
+title: "Paginate through large Olira API collection responses"
+sidebarTitle: "Pagination"
+description: "Learn how to page through large Olira API collections using the page and per_page parameters, and how to efficiently iterate all records."
+---
+
+All Olira API endpoints that return collections — such as `GET /resources`, `GET /events`, and `GET /search` — respond with paginated results rather than returning every record at once. This keeps individual responses fast and predictable regardless of how much data your account contains. You control which page to fetch and how many items to include per page using two simple query parameters, and the response always includes a `meta` object so you can calculate the total number of pages.
+
+## Query parameters
+
+<ParamField query="page" type="integer" default="1">
+  The page number to retrieve. Pages are 1-indexed — the first page is `1`, not `0`. If the value exceeds the total number of available pages, the API returns an empty `data` array.
+</ParamField>
+
+<ParamField query="per_page" type="integer" default="20">
+  The number of items to include on each page. Accepted range is `1` to `100`. Values outside this range return a `validation_error`. Defaults to `20` when omitted.
+</ParamField>
+
+## Response structure
+
+Every paginated response wraps the collection in a `data` array and includes a `meta` object that describes the current page position and total record count.
+
+```json
+{
+  "data": [
+    {
+      "id": "res_01HABC",
+      "name": "Alpha Resource",
+      "created_at": "2024-01-14T08:00:00Z",
+      "updated_at": "2024-01-14T08:00:00Z"
+    },
+    {
+      "id": "res_01HDEF",
+      "name": "Beta Resource",
+      "created_at": "2024-01-15T09:00:00Z",
+      "updated_at": "2024-01-15T09:00:00Z"
+    }
+  ],
+  "meta": {
+    "total": 157,
+    "page": 2,
+    "per_page": 20
+  }
+}
+```
+
+The `meta` fields are:
+
+- **`total`** — the total number of records across all pages, regardless of the current page or `per_page` setting. Use this to calculate the last page number: `Math.ceil(total / per_page)`.
+- **`page`** — the page number that was returned, echoing your request.
+- **`per_page`** — the page size that was used, echoing your request.
+
+## Iterating all pages
+
+When you need every record in a collection — for example, when building a report or syncing data to an external system — you can loop through pages automatically until the API signals that there are no more results. The simplest termination condition is checking whether the number of items returned is less than `per_page`, which means you have reached the last page.
+
+```javascript
+async function fetchAllResources() {
+  const PER_PAGE = 20;
+  let page = 1;
+  let allResources = [];
+
+  while (true) {
+    const response = await fetch(
+      `https://api.olira.ai/v1/resources?page=${page}&per_page=${PER_PAGE}`,
+      {
+        headers: { Authorization: "Bearer <API_KEY>" },
+      }
+    );
+
+    if (!response.ok) {
+      const { error } = await response.json();
+      throw new Error(`API error: ${error.code} — ${error.message}`);
+    }
+
+    const { data, meta } = await response.json();
+
+    allResources = allResources.concat(data);
+
+    // No more pages — we received fewer items than requested
+    if (data.length < PER_PAGE) break;
+
+    // Alternatively, use meta.total to know when to stop:
+    // if (allResources.length >= meta.total) break;
+
+    page++;
+  }
+
+  console.log(`Fetched ${allResources.length} resources in total.`);
+  return allResources;
+}
+```
+
+You can also use `meta.total` to pre-calculate the exact number of pages and issue all requests upfront, which is useful when you want to parallelize fetches:
+
+```javascript
+async function fetchAllResourcesParallel() {
+  const PER_PAGE = 100;
+
+  // Fetch the first page to learn the total count
+  const firstResponse = await fetch(
+    `https://api.olira.ai/v1/resources?page=1&per_page=${PER_PAGE}`,
+    { headers: { Authorization: "Bearer <API_KEY>" } }
+  );
+  const { data: firstPage, meta } = await firstResponse.json();
+
+  const totalPages = Math.ceil(meta.total / PER_PAGE);
+
+  // Build requests for pages 2 onward
+  const remainingRequests = Array.from({ length: totalPages - 1 }, (_, i) =>
+    fetch(
+      `https://api.olira.ai/v1/resources?page=${i + 2}&per_page=${PER_PAGE}`,
+      { headers: { Authorization: "Bearer <API_KEY>" } }
+    ).then((r) => r.json()).then(({ data }) => data)
+  );
+
+  const remainingPages = await Promise.all(remainingRequests);
+  return [firstPage, ...remainingPages].flat();
+}
+```
+
+<Tip>
+  Set `per_page=100` for bulk export scenarios to minimize the number of API calls you need to make. Fetching 157 records takes just 2 requests at `per_page=100` instead of 8 at the default `per_page=20`.
+</Tip>

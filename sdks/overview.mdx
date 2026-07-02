@@ -1,0 +1,29 @@
+---
+title: "Olira SDKs: official client libraries for your language"
+sidebarTitle: "Overview"
+description: "Olira provides official SDKs for JavaScript/TypeScript and Python, wrapping the REST API with typed methods and built-in error handling."
+---
+
+Olira's official SDKs give you a productive, idiomatic way to integrate with the Olira platform without writing raw HTTP requests. Each SDK wraps the REST API (base URL `https://api.olira.ai/v1`) with fully typed methods, automatic retries, pagination helpers, and structured error objects — so you can focus on building your product instead of managing infrastructure.
+
+<CardGroup cols={2}>
+  <Card title="JavaScript SDK" icon="js" href="/sdks/javascript">
+    Use `@olira/sdk` with Node.js or browser environments. Full TypeScript support included.
+  </Card>
+  <Card title="Python SDK" icon="python" href="/sdks/python">
+    Use `olira` with sync and async support. Compatible with Python 3.8 and above.
+  </Card>
+</CardGroup>
+
+## Why use the SDK?
+
+You can always call the Olira REST API directly, but the SDKs offer several advantages that make day-to-day development faster and more reliable:
+
+- **Type safety** — every request parameter and response field is fully typed, giving you autocomplete and compile-time checks in TypeScript and type-annotated signatures in Python.
+- **Automatic retry logic** — transient network errors and rate-limit responses are retried with exponential back-off, so you don't have to implement that logic yourself.
+- **Built-in pagination helpers** — iterate over large result sets without manually managing page cursors or constructing successive requests.
+- **Clear error objects** — errors surface as structured `OliraError` instances with a machine-readable `code` and a human-readable `message`, making error handling consistent across your codebase.
+
+## Getting help
+
+If you need a detailed reference for every endpoint and parameter, see the [API reference](/api-reference). For billing, account, or general questions, visit the [help section](/help).

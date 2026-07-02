@@ -1,0 +1,100 @@
+{
+  "projectType": "saas",
+  "projectName": "Olira",
+  "projectDescription": "A developer platform providing APIs, SDKs, and tools to build and integrate powerful product features.",
+  "theme": "luma",
+  "primaryColor": "#ef7025",
+  "lightColor": "#eec9bc",
+  "darkColor": "#4fa1ab",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "authentication"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/overview",
+              "concepts/data-model",
+              "concepts/requests-responses"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/first-integration",
+              "guides/error-handling",
+              "guides/pagination",
+              "guides/webhooks"
+            ]
+          },
+          {
+            "group": "SDKs",
+            "pages": [
+              "sdks/overview",
+              "sdks/javascript",
+              "sdks/python"
+            ]
+          },
+          {
+            "group": "Help",
+            "pages": [
+              "help/faq",
+              "help/troubleshooting",
+              "help/rate-limits"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference/introduction",
+              "api-reference/authentication",
+              "api-reference/errors"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api-reference/endpoints/resources",
+              "api-reference/endpoints/search",
+              "api-reference/endpoints/events",
+              "api-reference/endpoints/webhooks"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "RESTful API with JSON responses",
+    "API key and OAuth 2.0 authentication",
+    "Webhooks for real-time event delivery",
+    "Official JavaScript and Python SDKs",
+    "Pagination and filtering on collection endpoints",
+    "Detailed error codes and developer-friendly messages"
+  ],
+  "publicApiSurface": [
+    "GET /resources",
+    "POST /resources",
+    "GET /resources/{id}",
+    "PATCH /resources/{id}",
+    "DELETE /resources/{id}",
+    "GET /search",
+    "GET /events",
+    "POST /webhooks",
+    "DELETE /webhooks/{id}"
+  ]
+}

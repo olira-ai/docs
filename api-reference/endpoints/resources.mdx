@@ -1,0 +1,253 @@
+---
+title: "Resources API endpoints: create, read, update, delete"
+sidebarTitle: "Resources"
+description: "REST API endpoints for managing Olira resources. Covers listing, creating, retrieving, updating, and deleting resource objects via CRUD operations."
+---
+
+Resources are the core objects in the Olira platform. Use the endpoints below to create and manage resources throughout their lifecycle — from initial creation to eventual deletion. All requests must include an `Authorization: Bearer <API_KEY>` header, and all request and response bodies use JSON.
+
+---
+
+### `GET /resources` — List resources
+
+Returns a paginated list of resources belonging to your account. Results are ordered by creation date, newest first. Use the `status` filter to narrow results to only active or inactive resources.
+
+<ParamField query="page" type="integer" default={1}>
+  The page number to retrieve. Starts at `1`.
+</ParamField>
+
+<ParamField query="per_page" type="integer" default={20}>
+  Number of results per page. Maximum value is `100`.
+</ParamField>
+
+<ParamField query="status" type="string">
+  Filter resources by status. Accepted values: `active`, `inactive`. Omit this parameter to return resources of all statuses.
+</ParamField>
+
+**Response — 200 OK**
+
+<ResponseField name="data" type="array">
+  An array of Resource objects matching the query.
+
+  <Expandable title="Resource object fields">
+    <ResponseField name="id" type="string">
+      Unique resource identifier, prefixed with `res_` (e.g. `res_01j9k2m...`).
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      Human-readable name of the resource.
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      Current status of the resource. Either `active` or `inactive`.
+    </ResponseField>
+    <ResponseField name="metadata" type="object">
+      Arbitrary key-value pairs attached to the resource.
+    </ResponseField>
+    <ResponseField name="created_at" type="string">
+      ISO 8601 UTC timestamp of when the resource was created.
+    </ResponseField>
+    <ResponseField name="updated_at" type="string">
+      ISO 8601 UTC timestamp of the most recent update.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  Pagination metadata for the current response.
+
+  <Expandable title="meta fields">
+    <ResponseField name="total" type="integer">
+      Total number of resources matching the query.
+    </ResponseField>
+    <ResponseField name="page" type="integer">
+      The current page number.
+    </ResponseField>
+    <ResponseField name="per_page" type="integer">
+      Number of results returned per page.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl https://api.olira.ai/v1/resources?page=1&per_page=20&status=active \
+  -H "Authorization: Bearer <API_KEY>"
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "res_01j9k2mabcdef1234567890ab",
+      "name": "Primary dataset",
+      "status": "active",
+      "metadata": {
+        "team": "engineering"
+      },
+      "created_at": "2024-09-01T10:00:00Z",
+      "updated_at": "2024-09-15T08:30:00Z"
+    }
+  ],
+  "meta": {
+    "total": 42,
+    "page": 1,
+    "per_page": 20
+  }
+}
+```
+
+---
+
+### `POST /resources` — Create resource
+
+Creates a new resource. You must supply a `name`; all other fields are optional. On success, the API returns the newly created Resource object with a `201 Created` status.
+
+<ParamField body="name" type="string" required>
+  A human-readable name for the resource. Must be a non-empty string.
+</ParamField>
+
+<ParamField body="status" type="string" default="active">
+  Initial status of the resource. Accepted values: `active`, `inactive`. Defaults to `active` if omitted.
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  An optional object of arbitrary key-value pairs you want to store alongside the resource.
+</ParamField>
+
+**Response — 201 Created**
+
+Returns the full Resource object as described in [List resources](#get-resources--list-resources).
+
+```bash
+curl -X POST https://api.olira.ai/v1/resources \
+  -H "Authorization: Bearer <API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Primary dataset",
+    "status": "active",
+    "metadata": {
+      "team": "engineering"
+    }
+  }'
+```
+
+```json
+{
+  "id": "res_01j9k2mabcdef1234567890ab",
+  "name": "Primary dataset",
+  "status": "active",
+  "metadata": {
+    "team": "engineering"
+  },
+  "created_at": "2024-09-01T10:00:00Z",
+  "updated_at": "2024-09-01T10:00:00Z"
+}
+```
+
+---
+
+### `GET /resources/{id}` — Get resource
+
+Retrieves a single resource by its ID. Use this endpoint when you need to fetch the current state of a specific resource.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the resource to retrieve (e.g. `res_01j9k2mabcdef1234567890ab`).
+</ParamField>
+
+**Response — 200 OK**
+
+Returns the Resource object for the given ID.
+
+```bash
+curl https://api.olira.ai/v1/resources/res_01j9k2mabcdef1234567890ab \
+  -H "Authorization: Bearer <API_KEY>"
+```
+
+```json
+{
+  "id": "res_01j9k2mabcdef1234567890ab",
+  "name": "Primary dataset",
+  "status": "active",
+  "metadata": {
+    "team": "engineering"
+  },
+  "created_at": "2024-09-01T10:00:00Z",
+  "updated_at": "2024-09-15T08:30:00Z"
+}
+```
+
+---
+
+### `PATCH /resources/{id}` — Update resource
+
+Partially updates an existing resource. You only need to include the fields you want to change — any fields you omit remain unchanged. Returns the full updated Resource object on success.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the resource to update.
+</ParamField>
+
+<ParamField body="name" type="string">
+  A new name for the resource.
+</ParamField>
+
+<ParamField body="status" type="string">
+  Updated status. Accepted values: `active`, `inactive`.
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Updated metadata object. This replaces the existing metadata entirely — merge the old values yourself if you want to preserve them.
+</ParamField>
+
+<Note>
+  `PATCH` replaces only the fields you provide. To clear metadata entirely, pass `"metadata": {}`.
+</Note>
+
+**Response — 200 OK**
+
+Returns the full updated Resource object.
+
+```bash
+curl -X PATCH https://api.olira.ai/v1/resources/res_01j9k2mabcdef1234567890ab \
+  -H "Authorization: Bearer <API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Primary dataset (revised)",
+    "metadata": {
+      "team": "data-platform"
+    }
+  }'
+```
+
+```json
+{
+  "id": "res_01j9k2mabcdef1234567890ab",
+  "name": "Primary dataset (revised)",
+  "status": "active",
+  "metadata": {
+    "team": "data-platform"
+  },
+  "created_at": "2024-09-01T10:00:00Z",
+  "updated_at": "2024-09-20T14:05:00Z"
+}
+```
+
+---
+
+### `DELETE /resources/{id}` — Delete resource
+
+Permanently deletes a resource. This action cannot be undone. A successful deletion returns a `204 No Content` response with an empty body.
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the resource to delete.
+</ParamField>
+
+<Warning>
+  Deleting a resource is permanent and irreversible. Any events or data associated with the resource will no longer be accessible via the API.
+</Warning>
+
+**Response — 204 No Content**
+
+An empty response body is returned on success.
+
+```bash
+curl -X DELETE https://api.olira.ai/v1/resources/res_01j9k2mabcdef1234567890ab \
+  -H "Authorization: Bearer <API_KEY>"
+```
